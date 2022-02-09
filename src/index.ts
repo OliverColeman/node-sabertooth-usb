@@ -1,4 +1,13 @@
-import SerialPort from 'serialport'
+import SerialPortType from 'serialport'
+let SerialPort:SerialPortType
+try {
+  // In electron window.require should be used.
+  SerialPort = window.require('serialport')
+}
+catch (e) {
+  SerialPort = require('serialport')
+}
+
 import _ from 'lodash'
 
 export type SingleChannel = 1 | 2
@@ -38,6 +47,16 @@ export enum MixedModeMotor {
   Turn = 84,
 }
 
+/** Sabertooth USB connection options. */
+export type Options = {
+  /** Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. */
+  baudRate?:number
+  /** The timeout for get requests, in ms. Default is 3000. */
+  timeout?:number
+  /** The address of the Sabertooth. Default is 128. */
+  address?:number
+}
+
 const MASK = 127
 
 const appendChecksum = (buffer:number[], offset:number) => {
@@ -54,10 +73,12 @@ const appendChecksum = (buffer:number[], offset:number) => {
 export class SabertoothUSB {
   /** The path for the USB serial port this SabertoothUSB is connected to. */
   readonly path:string
-  /** The address of the Sabertooth. By default, this is 128. */
+  /** The address of the Sabertooth. Default is 128. */
   readonly address: number
+  /** The timeout for get requests, in ms. Default is 3000. */
+  readonly timeout: number
 
-  private serial: SerialPort
+  private serial: SerialPortType
   private lastError: Error = null
 
   /**
@@ -68,13 +89,16 @@ export class SabertoothUSB {
    * If the connection failes reconnection will be attempted automatically.
    * 
    * @param path the path to the (USB) serial port. eg `/dev/ttyACM0` or `COM1`.
-   * @param baudRate Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200
-   * @param address The address of the Sabertooth. By default, this is 128.
+   * @param options Optional connection options, with parameters:
+   * * baudRate: Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. Default is 38400.
+   * * timeout: The timeout for get requests, in ms. Default is 3000.
+   * * address: The address of the Sabertooth. Default is 128.
    */
-  constructor (path:string, baudRate:number = 38400, address:number=128) {
+  constructor (path:string, options?:Options) {
     this.path = path
-    this.address = address
-    this.serial = new SerialPort(path, { baudRate, autoOpen: false })
+    this.timeout = options?.timeout ?? 3000
+    this.address = options?.address ?? 128
+    this.serial = new SerialPort(path, { baudRate: options?.baudRate ?? 38400, autoOpen: false })
 
     let connectIntervalHandle:NodeJS.Timeout
 
@@ -246,10 +270,13 @@ export class SabertoothUSB {
     return await this.get(Type.Motor, channel, GetType.Current) / 10
   }
 
-  private get (type:number, channel:SingleChannel, getType:number, timeout:number = 1000, scaled:boolean = true) {
+  private get (type:number, channel:SingleChannel, getType:number, scaled:boolean = true) {
     if (!scaled) getType |= 2
     return new Promise<number>((resolve, reject) => {
-      const timeoutHandle = setTimeout(() => reject(`Sabertooth (${this.path}) get request timed out`), timeout)
+      const timeoutHandle = setTimeout(() => {
+        this.serial.removeListener('data', dataListener)
+        reject(`Sabertooth (${this.path}) get request timed out`)
+      }, this.timeout)
 
       const dataListener = (data:Buffer) => {
         if (getType === (data[2] & ~1)

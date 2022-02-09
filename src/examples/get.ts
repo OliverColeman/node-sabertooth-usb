@@ -1,6 +1,6 @@
 import { SabertoothUSB, SingleChannel} from '../index'
 
-const sabertooth = new SabertoothUSB('/dev/ttyACM0')
+const sabertooth = new SabertoothUSB('/dev/ttyACM0', {baudRate:38400, timeout:3000, address:128})
 
 // Get all the SabertoothUSB class methods starting with 'get'
 const stats = Reflect.ownKeys(Reflect.getPrototypeOf(sabertooth))

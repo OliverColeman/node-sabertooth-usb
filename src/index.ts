@@ -98,6 +98,7 @@ export class SabertoothUSB {
     this.path = path
     this.timeout = options?.timeout ?? 3000
     this.address = options?.address ?? 128
+    // @ts-ignore broken because importing via window.require
     this.serial = new SerialPort(path, { baudRate: options?.baudRate ?? 38400, autoOpen: false })
 
     let connectIntervalHandle:NodeJS.Timeout

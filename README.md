@@ -65,7 +65,7 @@ See the `examples` folder for more usage examples.
 
 ## API
 
-
+[SabertoothUSB API](https://olivercoleman.github.io/node-sabertooth-usb/classes/SabertoothUSB.html)
 
 ## Notes
 

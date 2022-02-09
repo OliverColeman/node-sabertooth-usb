@@ -49,12 +49,16 @@ export enum MixedModeMotor {
 
 /** Sabertooth USB connection options. */
 export type Options = {
-  /** Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. */
+  /** Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. Default is 38400.*/
   baudRate?:number
-  /** The timeout for get requests, in ms. Default is 3000. */
+  /** The timeout for get requests, in ms. Default is 1000. */
   timeout?:number
   /** The address of the Sabertooth. Default is 128. */
   address?:number
+  /** The number of times to attempt a get request. Default is 3. */
+  maxGetAttemptCount?: number
+  /** Flag to enable debug console.log messages. Default is false. */
+  debug?: boolean
 }
 
 const MASK = 127
@@ -73,10 +77,14 @@ const appendChecksum = (buffer:number[], offset:number) => {
 export class SabertoothUSB {
   /** The path for the USB serial port this SabertoothUSB is connected to. */
   readonly path:string
-  /** The address of the Sabertooth. Default is 128. */
+  /** The address of the Sabertooth. */
   readonly address: number
-  /** The timeout for get requests, in ms. Default is 3000. */
+  /** The timeout for get requests, in ms. */
   readonly timeout: number
+  /** The number of retry attempts for get requests. */
+  readonly maxGetAttemptCount: number
+  /** Flag indicating if console.log debug messages are enabled. */
+  readonly debug: boolean
 
   private serial: SerialPortType
   private lastError: Error = null
@@ -89,15 +97,14 @@ export class SabertoothUSB {
    * If the connection failes reconnection will be attempted automatically.
    * 
    * @param path the path to the (USB) serial port. eg `/dev/ttyACM0` or `COM1`.
-   * @param options Optional connection options, with parameters:
-   * * baudRate: Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. Default is 38400.
-   * * timeout: The timeout for get requests, in ms. Default is 3000.
-   * * address: The address of the Sabertooth. Default is 128.
+   * @param options Optional connection options. See `Options` type for details.
    */
   constructor (path:string, options?:Options) {
     this.path = path
-    this.timeout = options?.timeout ?? 3000
+    this.timeout = options?.timeout ?? 1000
     this.address = options?.address ?? 128
+    this.maxGetAttemptCount = options?.maxGetAttemptCount ?? 3
+    this.debug = !!options?.debug
     // @ts-ignore broken because importing via window.require
     this.serial = new SerialPort(path, { baudRate: options?.baudRate ?? 38400, autoOpen: false })
 
@@ -121,12 +128,12 @@ export class SabertoothUSB {
     })
 
     this.serial.on('error', (err) => {
-      console.log(`Sabertooth (${this.path}) error:`, err)
+      this.debug && console.error(`Sabertooth (${this.path}) error:`, err)
       this.lastError = err
     })
 
     this.serial.on('close', (err) => {
-      console.log(`Sabertooth (${this.path}) disconnected, attempting to reconnect`)
+      this.debug && console.error(`Sabertooth (${this.path}) disconnected, attempting to reconnect`)
       this.lastError = err
       connect()
     })
@@ -274,10 +281,29 @@ export class SabertoothUSB {
   private get (type:number, channel:SingleChannel, getType:number, scaled:boolean = true) {
     if (!scaled) getType |= 2
     return new Promise<number>((resolve, reject) => {
-      const timeoutHandle = setTimeout(() => {
-        this.serial.removeListener('data', dataListener)
-        reject(`Sabertooth (${this.path}) get request timed out`)
-      }, this.timeout)
+      let attemptCount = 0
+      let timeoutHandle:NodeJS.Timeout
+
+      const attemptRequest = () => {
+        attemptCount += 1
+
+        this.sendCommand(Command.Get, [getType, type, channel])
+        
+        timeoutHandle = setTimeout(() => {
+          this.debug && console.warn(`Sabertooth (${this.path}) get request timed out after ${attemptCount} attempts`)
+          
+          if (attemptCount === this.maxGetAttemptCount) {
+            this.debug && console.error(`Sabertooth (${this.path}) aborting get request`)
+            this.serial.removeListener('data', dataListener)
+            reject(`Sabertooth (${this.path}) get request timed out`)
+          }
+          else {
+            this.debug && console.warn(`Sabertooth (${this.path}) retrying get request`)
+            // Try again...
+            attemptRequest()
+          }
+        }, this.timeout)
+      }
 
       const dataListener = (data:Buffer) => {
         if (getType === (data[2] & ~1)
@@ -292,7 +318,7 @@ export class SabertoothUSB {
 
       this.serial.on('data', dataListener)
 
-      this.sendCommand(Command.Get, [getType, type, channel])
+      attemptRequest()
     })
   }
 

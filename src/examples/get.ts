@@ -1,17 +1,18 @@
 import { SabertoothUSB, SingleChannel} from '../index'
 
-const sabertooth = new SabertoothUSB('/dev/ttyACM0', {baudRate:38400, timeout:3000, address:128})
-
-// Get all the SabertoothUSB class methods starting with 'get'
-const stats = Reflect.ownKeys(Reflect.getPrototypeOf(sabertooth))
-  .map(method => method.toString())
-  .filter(method => method.startsWith('get') && method !== 'get')
+const sabertooth = new SabertoothUSB('/dev/ttyACM0', {
+  // All options at default values.
+  baudRate: 38400, timeout: 1000, maxGetAttemptCount: 3, address: 128, debug: true
+})
 
 const printStats = async () => {
+  const startTime = Date.now()
+
   // Check that the connection is open and working.
   if (sabertooth.isConnected()) {
     try {
       console.log('==== Sabertooth stats ====')
+      const startTime = Date.now()
 
       console.log(`battery voltage: ${await sabertooth.getBatteryVoltage()}V`)
       for (const channel of [1, 2] as SingleChannel[]) {
@@ -19,9 +20,11 @@ const printStats = async () => {
         console.log(`  temp:    ${await sabertooth.getMotorDriverOutputTemperature(channel)}°C`)
         // Note: the current sensor is extremely noisy and can vary as much as several amps.
         console.log(`  current: ${await sabertooth.getMotorCurrent(channel)}A`)
-        // Motor rates are in range [-2047, 2047], full-reverse to full-forward.
+        // Motor rates are in range [-1, 1], full-reverse to full-forward.
         console.log(`  rate:    ${Math.round(await sabertooth.getMotorDriverOutputRate(channel) * 100)}%`)
       }
+
+      console.log(`Got stats in ${((Date.now() - startTime) / 1000).toFixed(1)}s`)
     }
     catch (e) {
       console.error(e)
@@ -30,6 +33,9 @@ const printStats = async () => {
   else {
     console.log(`waiting for connection, last error: ${sabertooth.getLastError()}`)
   }
+
+  // Print stats at most once every second (allow for requests to take longer than a second).
+  setTimeout(printStats, 1000 - (Date.now() - startTime))
 }
 
-setInterval(printStats, 1000)
+printStats()

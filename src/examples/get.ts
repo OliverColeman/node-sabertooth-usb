@@ -28,7 +28,7 @@ const printStats = async () => {
     }
   }
   else {
-    console.log("waiting for connection")
+    console.log(`waiting for connection, last error: ${sabertooth.getLastError()}`)
   }
 }
 

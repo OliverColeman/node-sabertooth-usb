@@ -58,6 +58,7 @@ export class SabertoothUSB {
   readonly address: number
 
   private serial: SerialPort
+  private lastError: Error = null
 
   /**
    * Create an object to control a motor driver.
@@ -90,21 +91,29 @@ export class SabertoothUSB {
       if (connectIntervalHandle) {
         clearInterval(connectIntervalHandle)
         connectIntervalHandle = null
+        this.lastError = null
       }
     })
 
-    this.serial.on('error', (e) => console.log(`Sabertooth (${this.path}) error:`, e))
+    this.serial.on('error', (err) => {
+      console.log(`Sabertooth (${this.path}) error:`, err)
+      this.lastError = err
+    })
 
-    connect()
-
-    this.serial.on('close', () => {
+    this.serial.on('close', (err) => {
       console.log(`Sabertooth (${this.path}) disconnected, attempting to reconnect`)
+      this.lastError = err
       connect()
     })
+
+    connect()
   }
 
   /** Returns true iff the USB serial connection to the motor driver is open and working. */
   isConnected = () => this.serial.isOpen
+
+  /** Get the last error that occurred in the connection to the motor driver. */
+  getLastError = () => this.lastError
 
   private checkRange(value:number, min:number, max:number, argName:string) {
     if (value < min || value > max) {

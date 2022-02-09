@@ -1,0 +1,38 @@
+{
+  "name": "sabertooth-usb",
+  "version": "1.0.0",
+  "description": "API for controlling USB-enabled Sabertooth motor drivers running in Packet Serial mode",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "preversion": "npm run build",
+    "postversion": "git push --follow-tags",
+    "build:docs": "typedoc --out docs src/index.ts",
+    "publish:docs": "rimraf docs && npm run build:docs && gh-pages -d docs"
+  },
+  "files": [
+    "lib"
+  ],
+  "author": "Oliver J. Coleman",
+  "license": "ISC",
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "serialport": "^9.2.8"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.178",
+    "@types/serialport": "^8.0.2",
+    "gh-pages": "^3.2.3",
+    "rimraf": "^3.0.2",
+    "typedoc": "^0.22.11",
+    "typescript": "^4.5.5"
+  },
+  "keywords": [
+    "motor",
+    "driver",
+    "motor-driver",
+    "usb",
+    "sabertooth"
+  ]
+}

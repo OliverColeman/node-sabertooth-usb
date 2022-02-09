@@ -1,4 +1,4 @@
-#sabertooth-usb
+# sabertooth-usb
 
 A node.js module providing an API for controlling a USB-enabled Sabertooth motor driver running in Packet Serial mode.
 
@@ -11,7 +11,7 @@ These are a series of dual-channel motor drivers produced by [Dimension Engineer
 ## Installation
 
 ```shell
-npm i saberthooth-usb
+npm i sabertooth-usb
 ```
 
 ## Usage

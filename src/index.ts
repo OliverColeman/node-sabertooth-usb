@@ -1,11 +1,13 @@
-import SerialPortType from 'serialport'
-let SerialPort:SerialPortType
+// In electron we may need to use window.require because https://stackoverflow.com/a/43971252/1133481
+// So we need to import the SerialPort type and SerialPort class separately. 
+import SerialPort from 'serialport'
+let SerialPortClass:typeof SerialPort
 try {
   // In electron window.require should be used.
-  SerialPort = window.require('serialport')
+  SerialPortClass = window.require('serialport')
 }
 catch (e) {
-  SerialPort = require('serialport')
+  SerialPortClass = require('serialport')
 }
 
 import _ from 'lodash'
@@ -86,7 +88,7 @@ export class SabertoothUSB {
   /** Flag indicating if console.log debug messages are enabled. */
   readonly debug: boolean
 
-  private serial: SerialPortType
+  private serial: SerialPort
   private lastError: Error = null
 
   /**
@@ -105,8 +107,7 @@ export class SabertoothUSB {
     this.address = options?.address ?? 128
     this.maxGetAttemptCount = options?.maxGetAttemptCount ?? 3
     this.debug = !!options?.debug
-    // @ts-ignore broken because importing via window.require
-    this.serial = new SerialPort(path, { baudRate: options?.baudRate ?? 38400, autoOpen: false })
+    this.serial = new SerialPortClass(path, { baudRate: options?.baudRate ?? 38400, autoOpen: false })
 
     let connectIntervalHandle:NodeJS.Timeout
 
@@ -350,3 +351,18 @@ export class SabertoothUSB {
     this.serial.write(Buffer.from(buffer))
   }
 }
+
+/** Get a list of the avilable Sabertooth devices.
+ * The return is an array of objects with fields like:
+ * ```
+ * manufacturer: 'Dimension Engineering',
+ * serialNumber: '1600DB368EC8',
+ * pnpId: 'usb-Dimension_Engineering_Sabertooth_2x32_1600DB368EC8-if01',
+ * locationId: undefined,
+ * vendorId: '268b',
+ * productId: '0201',
+ * path: '/dev/ttyACM0'
+ * ```
+ */
+export const listSabertoothDevices = async() => 
+  (await SerialPort.list()).filter(port => port.pnpId?.startsWith('usb-Dimension_Engineering_Sabertooth') )

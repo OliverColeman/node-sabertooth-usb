@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 // In electron we may need to use window.require because https://stackoverflow.com/a/43971252/1133481
 // So we need to import the SerialPort type and SerialPort class separately. 
 import SerialPort from 'serialport'
@@ -9,8 +11,6 @@ try {
 catch (e) {
   SerialPortClass = require('serialport')
 }
-
-import _ from 'lodash'
 
 export type SingleChannel = 1 | 2
 export type Channel = 1 | 2 | '*'
@@ -296,7 +296,7 @@ export class SabertoothUSB {
           if (attemptCount === this.maxGetAttemptCount) {
             this.debug && console.error(`Sabertooth (${this.path}) aborting get request`)
             this.serial.removeListener('data', dataListener)
-            reject(`Sabertooth (${this.path}) get request timed out`)
+            reject(Error(`Sabertooth (${this.path}) get request timed out`))
           }
           else {
             this.debug && console.warn(`Sabertooth (${this.path}) retrying get request`)
@@ -336,7 +336,7 @@ export class SabertoothUSB {
       type,
       (typeof channel === 'string') ? channel.charCodeAt(0) : channel
     ]
-    this.sendCommand(Command.Set, data);
+    this.sendCommand(Command.Set, data)
   }
 
   private sendCommand (command:number, data:number[]) {
@@ -365,4 +365,4 @@ export class SabertoothUSB {
  * ```
  */
 export const listSabertoothDevices = async() => 
-  (await SerialPort.list()).filter(port => port.pnpId?.startsWith('usb-Dimension_Engineering_Sabertooth') )
+  (await SerialPortClass.list()).filter(port => port.pnpId?.startsWith('usb-Dimension_Engineering_Sabertooth') )

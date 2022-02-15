@@ -61,6 +61,20 @@ export type Options = {
   maxGetAttemptCount?: number
   /** Flag to enable debug console.log messages. Default is false. */
   debug?: boolean
+  /** 
+   * Maximum motor output as proportion of battery input, in range [0, 1]. 
+   * Default is 0.95 (95%). 
+   * Set to 1 to disable maximum output rate compensation.
+   * 
+   * The actual output motor voltage for a given input drive rate is non-linear above approximately a 95% drive rate;
+   * the output motor voltage is capped at approximately 95% of the battery voltage (see image below).
+   * 
+   * When `maxMotorOutputRate` is set to a value < 1, a given drive rate is adjusted by scaling it with `rate * maxMotorOutputRate`. 
+   * This provides for a linear relationship between the input drive rate and the actual motor output voltage.
+   * 
+   * ![Plot of input drive rate vs output voltage](https://raw.githubusercontent.com/OliverColeman/node-sabertooth-usb/gh-pages/assets/Drive_rate_vs_output_rate.png)
+   */
+  maxMotorOutputRate?: number
 }
 
 const MASK = 127
@@ -87,6 +101,8 @@ export class SabertoothUSB {
   readonly maxGetAttemptCount: number
   /** Flag indicating if console.log debug messages are enabled. */
   readonly debug: boolean
+  /** Maximum motor output as proportion of battery input. */
+  readonly maxMotorOutputRate: number
 
   private serial: SerialPort
   private lastError: Error = null
@@ -106,8 +122,17 @@ export class SabertoothUSB {
     this.timeout = options?.timeout ?? 1000
     this.address = options?.address ?? 128
     this.maxGetAttemptCount = options?.maxGetAttemptCount ?? 3
+    this.maxMotorOutputRate = options?.maxMotorOutputRate ?? 0.95
     this.debug = !!options?.debug
-    this.serial = new SerialPortClass(path, { baudRate: options?.baudRate ?? 38400, autoOpen: false })
+
+    this.checkRange(this.timeout, 0, 10000, 'timeout')
+    this.checkRange(this.maxGetAttemptCount, 1, 10, 'maxGetAttemptCount')
+    this.checkRange(this.maxMotorOutputRate, 0.01, 1, 'maxMotorOutputRate')
+
+    this.serial = new SerialPortClass(path, { 
+      baudRate: options?.baudRate ?? 38400, 
+      autoOpen: false,
+    })
 
     let connectIntervalHandle:NodeJS.Timeout
 
@@ -157,13 +182,14 @@ export class SabertoothUSB {
   /**
    * Controls the specified motor output(s).
    * This sets the output of the motor channel as a fraction of the battery voltage.
+   * Note that the given rate is scaled by the `maxMotorOutputRate`.
    * 
    * @param channel the motor channel(s), either `1`, `2`, or `*` for all motors.
    * @param rate the new rate for the motor(s), in range [-1, 1] for maximum reverse to maximum forward respectively.
    */
   setMotor (channel:Channel, rate:number) {
     this.checkRange(rate, -1, 1, 'rate')
-    this.set(Type.Motor, channel, Math.round(rate * 2047))
+    this.set(Type.Motor, channel, Math.round(rate * this.maxMotorOutputRate * 2047))
   }
 
   /**
@@ -179,12 +205,13 @@ export class SabertoothUSB {
 
   /**
    * Controls the mixed-mode (differential) drive rate.
+   * Note that the given rate is scaled by the `maxMotorOutputRate`.
    * 
    * @param rate the new drive rate for the motors, in range [-1, 1] for maximum reverse to maximum forward respectively.
    */
   setDrive (rate:number) {
     this.checkRange(rate, -1, 1, 'rate')
-    this.set(Type.Motor, MixedModeMotor.Drive, Math.round(rate * 2047))
+    this.set(Type.Motor, MixedModeMotor.Drive, Math.round(rate * this.maxMotorOutputRate * 2047))
   }
 
   /**

@@ -53,7 +53,7 @@ export enum MixedModeMotor {
 export type Options = {
   /** Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. Default is 38400.*/
   baudRate?:number
-  /** The timeout for get requests, in ms. Default is 1000. */
+  /** The timeout for get requests, in ms. Default is 1000. 0 indicates timeout is disabled. */
   timeout?:number
   /** The address of the Sabertooth. Default is 128. */
   address?:number
@@ -317,20 +317,23 @@ export class SabertoothUSB {
 
         this.sendCommand(Command.Get, [getType, type, channel])
         
-        timeoutHandle = setTimeout(() => {
-          this.debug && console.warn(`Sabertooth (${this.path}) get request timed out after ${attemptCount} attempts`)
-          
-          if (attemptCount === this.maxGetAttemptCount) {
-            this.debug && console.error(`Sabertooth (${this.path}) aborting get request`)
-            this.serial.removeListener('data', dataListener)
-            reject(Error(`Sabertooth (${this.path}) get request timed out`))
-          }
-          else {
-            this.debug && console.warn(`Sabertooth (${this.path}) retrying get request`)
-            // Try again...
-            attemptRequest()
-          }
-        }, this.timeout)
+        // If timeout enabled.
+        if (this.timeout > 0) {
+          timeoutHandle = setTimeout(() => {
+            this.debug && console.warn(`Sabertooth (${this.path}) get request timed out after ${attemptCount} attempts`)
+            
+            if (attemptCount === this.maxGetAttemptCount) {
+              this.debug && console.error(`Sabertooth (${this.path}) aborting get request`)
+              this.serial.removeListener('data', dataListener)
+              reject(Error(`Sabertooth (${this.path}) get request timed out`))
+            }
+            else {
+              this.debug && console.warn(`Sabertooth (${this.path}) retrying get request`)
+              // Try again...
+              attemptRequest()
+            }
+          }, this.timeout)
+        }
       }
 
       const dataListener = (data:Buffer) => {

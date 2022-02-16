@@ -1,8 +1,6 @@
 # sabertooth-usb
 
-A node.js module providing an API for controlling a USB-enabled Sabertooth motor driver running in Packet Serial mode.
-
-The API covers all available commands and data request types.
+A Node.js module providing an API for controlling a USB-enabled Sabertooth motor driver running in Packet Serial mode.
 
 These are a series of dual-channel motor drivers produced by [Dimension Engineering](https://www.dimensionengineering.com/), including the popular Sabertooth 2x32:
 
@@ -13,6 +11,16 @@ These are a series of dual-channel motor drivers produced by [Dimension Engineer
 ```shell
 npm i sabertooth-usb
 ```
+
+## Features
+
+* Covers all available commands and telemetry request types.
+* Automatically re-establishes the serial connection if it fails.
+* Automatically retries telemetry requests a configurable number of times after a configurable timeout.
+* Includes a [handy function to find the serial port your Sabertooth is connected to](https://olivercoleman.github.io/node-sabertooth-usb/modules.html#listSabertoothDevices).
+* Automatically compensates for the maximum motor output voltage (as a proportion of the input voltage) to 
+  create a linear input drive rate to output voltage. 
+  [See the `maxMotorOutputRate` option](https://olivercoleman.github.io/node-sabertooth-usb/modules.html#Options).
 
 ## Usage
 

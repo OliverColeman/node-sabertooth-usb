@@ -1,6 +1,6 @@
 {
   "name": "sabertooth-usb",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "API for controlling USB-enabled Sabertooth motor drivers running in Packet Serial mode",
   "main": "lib/index.js",
   "scripts": {

@@ -110,9 +110,9 @@ export class SabertoothUSB {
   /**
    * Create an object to control a motor driver.
    * 
-   * A connection will to the motor driver will be attempted upon creation but 
+   * A connection to the motor driver will be attempted upon creation but 
    * this is asynchronous and is not available immediately after creation.
-   * If the connection failes reconnection will be attempted automatically.
+   * If the connection fails reconnection will be attempted automatically.
    * 
    * @param path the path to the (USB) serial port. eg `/dev/ttyACM0` or `COM1`.
    * @param options Optional connection options. See `Options` type for details.

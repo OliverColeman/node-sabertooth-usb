@@ -2,8 +2,7 @@
 <a href="#sabertooth-usb" id="sabertooth-usb" style="color: inherit; text-decoration: none;">
   <h1>sabertooth-usb</h1>
 </a>
-<p>A node.js module providing an API for controlling a USB-enabled Sabertooth motor driver running in Packet Serial mode.</p>
-<p>The API covers all available commands and data request types.</p>
+<p>A Node.js module providing an API for controlling a USB-enabled Sabertooth motor driver running in Packet Serial mode.</p>
 <p>These are a series of dual-channel motor drivers produced by <a href="https://www.dimensionengineering.com/">Dimension Engineering</a>, including the popular Sabertooth 2x32:</p>
 <p><img src="https://www.dimensionengineering.com/images/products/Sabertooth2x32Small.jpg" alt="Sabertooth 2x32"></p>
 
@@ -12,6 +11,19 @@
 </a>
 <pre><code class="language-shell"><span class="hl-1">npm i sabertooth-usb</span>
 </code></pre>
+
+<a href="#features" id="features" style="color: inherit; text-decoration: none;">
+  <h2>Features</h2>
+</a>
+<ul>
+<li>Covers all available commands and telemetry request types.</li>
+<li>Automatically re-establishes the serial connection if it fails.</li>
+<li>Automatically retries telemetry requests a configurable number of times after a configurable timeout.</li>
+<li>Includes a <a href="https://olivercoleman.github.io/node-sabertooth-usb/modules.html#listSabertoothDevices">handy function to find the serial port your Sabertooth is connected to</a>.</li>
+<li>Automatically compensates for the maximum motor output voltage (as a proportion of the input voltage) to 
+create a linear input drive rate to output voltage. 
+<a href="https://olivercoleman.github.io/node-sabertooth-usb/modules.html#Options">See the <code>maxMotorOutputRate</code> option</a>.</li>
+</ul>
 
 <a href="#usage" id="usage" style="color: inherit; text-decoration: none;">
   <h2>Usage</h2>

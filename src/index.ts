@@ -7,8 +7,7 @@ let SerialPortClass:typeof SerialPort
 try {
   // In electron window.require should be used.
   SerialPortClass = window.require('serialport')
-}
-catch (e) {
+} catch (e) {
   SerialPortClass = require('serialport')
 }
 
@@ -51,7 +50,7 @@ export enum MixedModeMotor {
 
 /** Sabertooth USB connection options. */
 export type Options = {
-  /** Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. Default is 38400.*/
+  /** Serial baud rate, options are 2400, 9600, 19200, 38400 and 115200. Default is 38400. */
   baudRate?:number
   /** The timeout for get requests, in ms. Default is 1000. 0 indicates timeout is disabled. */
   timeout?:number
@@ -75,6 +74,12 @@ export type Options = {
    * ![Plot of input drive rate vs output voltage](https://raw.githubusercontent.com/OliverColeman/node-sabertooth-usb/gh-pages/assets/Drive_rate_vs_output_rate.png)
    */
   maxMotorOutputRate?: number
+  /**
+   * Motor current denoise exponential moving average factor.
+   * Range is (0, 1]. Larger value means less de-noising.
+   * Set to 1 to disable denoising. Default is 0.1.
+   */
+  motorCurrentDenoiseAlpha?: number
 }
 
 const MASK = 127
@@ -103,9 +108,15 @@ export class SabertoothUSB {
   readonly debug: boolean
   /** Maximum motor output as proportion of battery input. */
   readonly maxMotorOutputRate: number
+  /** Motor current denoise exponential moving average factor. */
+  readonly motorCurrentDenoiseAlpha: number
 
   private serial: SerialPort
   private lastError: Error = null
+  private motorCurrentExponetialAverage = {
+    1: 0,
+    2: 0,
+  }
 
   /**
    * Create an object to control a motor driver.
@@ -123,11 +134,13 @@ export class SabertoothUSB {
     this.address = options?.address ?? 128
     this.maxGetAttemptCount = options?.maxGetAttemptCount ?? 3
     this.maxMotorOutputRate = options?.maxMotorOutputRate ?? 0.95
+    this.motorCurrentDenoiseAlpha = options?.motorCurrentDenoiseAlpha ?? 0.1
     this.debug = !!options?.debug
 
     this.checkRange(this.timeout, 0, 10000, 'timeout')
     this.checkRange(this.maxGetAttemptCount, 1, 10, 'maxGetAttemptCount')
     this.checkRange(this.maxMotorOutputRate, 0.01, 1, 'maxMotorOutputRate')
+    this.checkRange(this.motorCurrentDenoiseAlpha, 0.0000001, 1, 'motorCurrentDenoiseAlpha')
 
     this.serial = new SerialPortClass(path, { 
       baudRate: options?.baudRate ?? 38400, 
@@ -173,7 +186,7 @@ export class SabertoothUSB {
   /** Get the last error that occurred in the connection to the motor driver. */
   getLastError = () => this.lastError
 
-  private checkRange(value:number, min:number, max:number, argName:string) {
+  private checkRange (value:number, min:number, max:number, argName:string) {
     if (value < min || value > max) {
       throw Error(`Sabertooth (${this.path}): invalid value for ${argName}: ${value}, must be in range [${min}, ${max}]`)
     }
@@ -230,7 +243,7 @@ export class SabertoothUSB {
    * @param channel the motor channel(s), either `1`, `2`, or `*` for all motors.
    * @param enableFreewheel True to enable freewheeling, false to disable freewheeling.
    */
-  setFreewheel(channel:Channel, enableFreewheel:boolean) {
+  setFreewheel (channel:Channel, enableFreewheel:boolean) {
     this.set(Type.Freewheel, channel, enableFreewheel ? 2048 : 0)
   }
 
@@ -241,8 +254,8 @@ export class SabertoothUSB {
    * @param channel the channel(s), either `1`, `2`, or `*` for all channels.
    * @param enableFreewheel True to trigger shutdown, false to clear the shutdown.
    */
-  shutDown(type:Type.Motor | Type.Power, channel:Channel, shutdownEnabled:boolean) {
-    this.set(type, channel, shutdownEnabled ? 2048 : 0, SetType.Shutdown);
+  shutDown (type:Type.Motor | Type.Power, channel:Channel, shutdownEnabled:boolean) {
+    this.set(type, channel, shutdownEnabled ? 2048 : 0, SetType.Shutdown)
   }
 
   /**
@@ -251,7 +264,7 @@ export class SabertoothUSB {
    * @param channel the motor channel(s), either `1`, `2`, or `*` for all channels.
    * @param currentLimit the new current limit on Amps, in range (0, 100], or -1 to use the default limit.
    */
-  setCurrentLimit(channel:Channel, currentLimit:number) {
+  setCurrentLimit (channel:Channel, currentLimit:number) {
     this.checkRange(currentLimit, -1, 100, 'currentLimit')
     this.set(
       Type.CurrentLimit, 
@@ -266,7 +279,7 @@ export class SabertoothUSB {
    * @param channel the motor channel(s), either `1`, `2`, or `*` for all channels.
    * @param ramping The ramping value, between -16383 (fast) and 2047 (slow).
    */
-  setRamping(channel:Channel, ramping:number) {
+  setRamping (channel:Channel, ramping:number) {
     this.checkRange(ramping, -16383, 2047, 'ramping')
     this.set(Type.Ramping, channel, ramping)
   }
@@ -286,7 +299,6 @@ export class SabertoothUSB {
     return this.get(Type.Motor, channel, GetType.Temperature) 
   }
 
-  
   /**
    * Get the output rate for the specified motor channel, in range [-1, 1].
    */
@@ -303,7 +315,13 @@ export class SabertoothUSB {
    */
   async getMotorCurrent (channel:SingleChannel) { 
     this.checkRange(channel, 1, 2, 'channel')
-    return await this.get(Type.Motor, channel, GetType.Current) / 10
+    const currentValue = await this.get(Type.Motor, channel, GetType.Current) / 10
+    const previousValue = this.motorCurrentExponetialAverage[channel]
+    const denoisedValue
+      = previousValue * (1 - this.motorCurrentDenoiseAlpha)
+      + currentValue * this.motorCurrentDenoiseAlpha
+    this.motorCurrentExponetialAverage[channel] = denoisedValue
+    return denoisedValue
   }
 
   private get (type:number, channel:SingleChannel, getType:number, scaled:boolean = true) {
@@ -326,8 +344,7 @@ export class SabertoothUSB {
               this.debug && console.error(`Sabertooth (${this.path}) aborting get request`)
               this.serial.removeListener('data', dataListener)
               reject(Error(`Sabertooth (${this.path}) get request timed out`))
-            }
-            else {
+            } else {
               this.debug && console.warn(`Sabertooth (${this.path}) retrying get request`)
               // Try again...
               attemptRequest()
@@ -353,7 +370,7 @@ export class SabertoothUSB {
     })
   }
 
-  private set(type:number, channel:Channel | MixedModeMotor, value:number, setType = SetType.Value) {
+  private set (type:number, channel:Channel | MixedModeMotor, value:number, setType = SetType.Value) {
     let flags = setType
     if (value < 0) {
       value = -value
@@ -364,7 +381,7 @@ export class SabertoothUSB {
       (value >> 0) & 0x7f,
       (value >> 7) & 0x7f,
       type,
-      (typeof channel === 'string') ? channel.charCodeAt(0) : channel
+      (typeof channel === 'string') ? channel.charCodeAt(0) : channel,
     ]
     this.sendCommand(Command.Set, data)
   }
@@ -394,5 +411,5 @@ export class SabertoothUSB {
  * path: '/dev/ttyACM0'
  * ```
  */
-export const listSabertoothDevices = async() => 
-  (await SerialPortClass.list()).filter(port => port.pnpId?.startsWith('usb-Dimension_Engineering_Sabertooth') )
+export const listSabertoothDevices = async () =>
+  (await SerialPortClass.list()).filter(port => port.pnpId?.startsWith('usb-Dimension_Engineering_Sabertooth'))
